@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flashlight App</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: #121212;
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        .container {
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 40px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin: 0;
+            letter-spacing: 1px;
+            font-weight: 500;
+        }
+
+        /* Power Button Styling */
+        .power-btn {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            background: #222222;
+            border: 4px solid #333333;
+            color: #888888;
+            font-size: 4rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            transition: all 0.3s ease;
+            outline: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Active/On state styling */
+        .power-btn.active {
+            background: #00ff88;
+            border-color: #ffffff;
+            color: #121212;
+            box-shadow: 0 0 40px #00ff88, inset 0 0 20px rgba(255, 255, 255, 0.6);
+        }
+
+        .status-text {
+            font-size: 1.1rem;
+            color: #aaaaaa;
+            min-height: 24px;
+        }
+
+        /* Invisible video element needed to keep the camera stream alive */
+        video {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1 id="app-title">Flashlight</h1>
+        
+        <!-- SVG Power Icon inside the button -->
+        <button class="power-btn" id="torchToggle" aria-label="Toggle Flashlight">
+            <svg xmlns="http://w3.org" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+                <line x1="12" y1="2" x2="12" y2="12"></line>
+            </svg>
+        </button>
+
+        <div class="status-text" id="statusLabel">Tap to turn on</div>
+    </div>
+
+    <!-- Hidden video element required by some mobile browsers to initiate camera track -->
+    <video id="video-preview" autoplay playsinline></video>
+
+    <script>
+        const torchToggle = document.getElementById('torchToggle');
+        const statusLabel = document.getElementById('statusLabel');
+        const videoElement = document.getElementById('video-preview');
+
+        let streamRef = null;
+        let trackRef = null;
+        let isTorchOn = false;
+
+        // Function to initialize the camera stream and access the torch hardware
+        async function initTorch() {
+            try {
+                statusLabel.textContent = "Requesting camera access...";
+                
+                // Request environment (back) camera access
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment' }
+                });
+                
+                streamRef = stream;
+                videoElement.srcObject = stream;
+                
+                // Grab the active video track
+                const videoTrack = stream.getVideoTracks()[0];
+                trackRef = videoTrack;
+
+                // Verify if the device camera actually supports a torch feature
+                const capabilities = videoTrack.getCapabilities();
+                if (!capabilities.torch) {
+                    throw new Error("Torch feature not supported on this camera/device.");
+                }
+
+                return true;
+            } catch (error) {
+                console.error(error);
+                statusLabel.textContent = "Error: " + error.message;
+                clearStream();
+                return false;
+            }
+        }
+
+        // Clean up camera streams if things fail or turn off
+        function clearStream() {
+            if (trackRef) {
+                trackRef.stop();
+                trackRef = null;
+            }
+            if (streamRef) {
+                streamRef.getTracks().forEach(track => track.stop());
+                streamRef = null;
+            }
+            isTorchOn = false;
+            torchToggle.classList.remove('active');
+        }
+
+        // Toggle handling function
+        async function handleToggle() {
+            // If torch is currently OFF, we turn it ON
+            if (!isTorchOn) {
+                // Initialize the camera stream first if it doesn't exist
+                if (!trackRef) {
+                    const ready = await initTorch();
+                    if (!ready) return; 
+                }
+
+                try {
+                    // Inject the advanced constraint configuration to trigger physical hardware
+                    await trackRef.applyConstraints({
+                        advanced: [{ torch: true }]
+                    });
+                    isTorchOn = true;
+                    torchToggle.classList.add('active');
+                    statusLabel.textContent = "Torch is ON";
+                } catch (err) {
+                    statusLabel.textContent = "Failed to switch torch on.";
+                }
+            } 
+            // If torch is currently ON, we shut down the stream to turn it OFF completely
+            else {
+                try {
+                    if (trackRef) {
+                        await trackRef.applyConstraints({
+                            advanced: [{ torch: false }]
+                        });
+                    }
+                } catch (err) {
+                    console.log("Error turning off directly, stopping stream instead.");
+                }
+                clearStream();
+                statusLabel.textContent = "Torch is OFF";
+            }
+        }
+
+        // Single click event listener targeting user gesture requirements
+        torchToggle.addEventListener('click', handleToggle);
+    </script>
+</body>
+</html>
