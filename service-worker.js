@@ -14,7 +14,7 @@ self.addEventListener('install', (e) => {
   );
 });
 
-// अफलाइन भएको बेला क्याशबाट फाइल लोड गर्ने
+// अफライン भएको बेला क्याशबाट फाइल लोड गर्ने
 self.addEventListener('fetch', (e) => {
   e.respondWith(
     caches.match(e.request).then((response) => {
