@@ -190,8 +190,19 @@
             }
         }
 
+        
         // Single click event listener targeting user gesture requirements
         torchToggle.addEventListener('click', handleToggle);
+// सर्भिस वर्कर रजिस्टर गर्ने कोड (यसले अफलाइन चलाउन मद्दत गर्छ)
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/service-worker.js')
+        .then(reg => console.log('Service Worker Registered'))
+        .catch(err => console.log('Service Worker Failed', err));
+    });
+}
+
+
     </script>
 </body>
 </html>
